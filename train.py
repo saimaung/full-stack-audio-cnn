@@ -128,7 +128,7 @@ def train():
     train_transform = nn.Sequential(
         # standard MelSpectrogram configuration values
         T.MelSpectrogram(
-            sample_rate=22050,
+            sample_rate=44100,  # esc-50 dataset is sampled at 44100
             n_fft=1024,  # windows size
             hop_length=512,
             n_mels=128,
@@ -144,7 +144,7 @@ def train():
     validate_transform = nn.Sequential(
         # standard MelSpectrogram configuration values
         T.MelSpectrogram(
-            sample_rate=22050,
+            sample_rate=44100,
             n_fft=1024,  # windows size
             hop_length=512,
             n_mels=128,

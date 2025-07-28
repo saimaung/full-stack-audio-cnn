@@ -19,3 +19,9 @@ uv pip install librosa fastapi
 modal setup
 modal run train.py
 ```
+
+## Raining Inference Locally
+```bash
+modal deploy inference.py
+modal run inference.py
+```

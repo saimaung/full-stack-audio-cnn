@@ -46,7 +46,7 @@ class ResidualBlock(nn.Module):
                 nn.BatchNorm2d(out_channels)
             )
 
-    def forward(self, x):
+    def forward(self, x, fmap_dict=None, prefix=""):
         # input -> first Neuron
         out = self.conv1(x)
         out = self.bn1(out)
@@ -54,7 +54,12 @@ class ResidualBlock(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
         shortcut = self.short_cut(x) if self.use_shortcut else x
-        out = torch.relu(out + shortcut)
+        out_add = out + shortcut
+        if fmap_dict is not None:
+            fmap_dict[f"{prefix}.conv"] = out_add
+        out = torch.relu(out_add)
+        if fmap_dict is not None:
+            fmap_dict[f"{prefix}.relu"] = out
         return out
 
 
@@ -89,20 +94,43 @@ class AudioCNN(nn.Module):
         self.dropout = nn.Dropout(p=0.5)
         self.fc = nn.Linear(in_features=512, out_features=num_classes)
 
-    def forward(self, x):
-        x = self.initial_conv(x)
-        # pass tensors through even ResidualBlock
-        # Process through all residual layers sequentially
-        for layer in [self.layer_1, self.layer_2, self.layer_3, self.layer_4]:
-            for residual_block in layer:
-                x = residual_block(x)
-        x = self.avg_pool(x)
-        # Flatten layer: reshape tensor without changing the values
-        # first dimension is batch size - keep it as it is
-        # second dimension is -1 means infer the dimension automatically
-        # such that the total number of elements remains the same
-        x = x.view(x.size(0), -1)
-        x = self.dropout(x)
-        # linear layer
-        x = self.fc(x)
-        return x
+    def forward(self, x, return_features_map=False):
+        if not return_features_map:
+            x = self.initial_conv(x)
+            # pass tensors through even ResidualBlock
+            # Process through all residual layers sequentially
+            for layer in [self.layer_1, self.layer_2, self.layer_3, self.layer_4]:
+                for residual_block in layer:
+                    x = residual_block(x)
+            x = self.avg_pool(x)
+            # Flatten layer: reshape tensor without changing the values
+            # first dimension is batch size - keep it as it is
+            # second dimension is -1 means infer the dimension automatically
+            # such that the total number of elements remains the same
+            x = x.view(x.size(0), -1)
+            x = self.dropout(x)
+            # linear layer
+            x = self.fc(x)
+            return x
+        else:
+            features_map = {}
+            x = self.initial_conv(x)
+            features_map["initial_conv"] = x
+            # pass tensors through even ResidualBlock
+            # Process through all residual layers sequentially
+            for layer in [self.layer_1, self.layer_2, self.layer_3, self.layer_4]:
+                for i, residual_block in enumerate(layer):
+                    x = residual_block(
+                        x, fmap_dict=features_map, prefix=f"layer_{[self.layer_1, self.layer_2, self.layer_3, self.layer_4].index(layer)}.block{i}")
+                features_map[
+                    f"layer_{[self.layer_1, self.layer_2, self.layer_3, self.layer_4].index(layer)}"] = x
+            x = self.avg_pool(x)
+            # Flatten layer: reshape tensor without changing the values
+            # first dimension is batch size - keep it as it is
+            # second dimension is -1 means infer the dimension automatically
+            # such that the total number of elements remains the same
+            x = x.view(x.size(0), -1)
+            x = self.dropout(x)
+            # linear layer
+            x = self.fc(x)
+            return x, features_map
